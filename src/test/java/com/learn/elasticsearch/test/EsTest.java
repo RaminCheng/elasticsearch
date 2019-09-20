@@ -19,9 +19,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.DeleteByQueryAction;
-import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
+import org.elasticsearch.index.reindex.*;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,6 +30,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -61,7 +62,8 @@ public class EsTest {
                 .field("title", "JAVA")
                 .field("content", "JAVA is a useful language")
                 .endObject();
-        IndexResponse response = transportClient.prepareIndex("my_index", "my_type","3")
+        //默认type为_doc
+        IndexResponse response = transportClient.prepareIndex("my_index", "_doc","2")
                 .setSource(doc).get();
         System.out.println(response.status());
     }
@@ -82,7 +84,7 @@ public class EsTest {
     @Test
     public void updateTest() throws IOException, ExecutionException, InterruptedException {
         UpdateRequest request = new UpdateRequest();
-        request.index("my_index").type("my_type").id("3")
+        request.index("my_index").type("my_type").id("4")
                 .doc(XContentFactory.jsonBuilder().startObject().field("title", "PYTHON").endObject());
         UpdateResponse response = transportClient.update(request).get();
         System.out.println(response.status());
@@ -118,9 +120,22 @@ public class EsTest {
     @Test
     public void deletedByQuery() {
         BulkByScrollResponse response = new DeleteByQueryRequestBuilder(transportClient, DeleteByQueryAction.INSTANCE)
-                .filter(QueryBuilders.matchQuery("name", "test")).source("test_index").get();
+                .filter(QueryBuilders.matchQuery("title", "test")).source("test_index").get();
         long deleted = response.getDeleted();
         System.out.println(deleted);
+        System.out.println(response.getStatus());
+    }
+
+    /**
+     * 查询并更新； painless：elasticsearch 推出的类似 groove 的脚本语言
+     */
+    @Test
+    public void updateByQuery() {
+        BulkByScrollResponse response = new UpdateByQueryRequestBuilder(transportClient, UpdateByQueryAction.INSTANCE)
+                .filter(QueryBuilders.termQuery("title", "test")).source("test_index").script(new Script(
+                        ScriptType.INLINE, "painless", "ctx._source.title = 'this is an apple'",
+                        Collections.emptyMap())).get();
+        System.out.println(response.getUpdated());
         System.out.println(response.getStatus());
     }
 
@@ -130,8 +145,10 @@ public class EsTest {
     @Test
     public void deleteByQueryAsync() throws InterruptedException {
         new DeleteByQueryRequestBuilder(transportClient, DeleteByQueryAction.INSTANCE)
-                .filter(QueryBuilders.matchQuery("name", "test")).source("test_index")
+                .filter(QueryBuilders.matchQuery("title", "test")).source("test_index")
                 .execute(new ActionListener<BulkByScrollResponse>() {
+                    //同步执行-传统情况：A -> B, A wait for B, B get result, B return A, A -> continue
+                    //异步执行-回调函数：A -> B, A continue, B get result, B -> A
                     @Override
                     public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                         long deleted = bulkByScrollResponse.getDeleted();
@@ -155,12 +172,18 @@ public class EsTest {
     @Test
     public void bulkTest() throws IOException {
         BulkRequestBuilder bulkRequestBuilder = transportClient.prepareBulk();
-        bulkRequestBuilder.add(transportClient.prepareIndex("my_index", "my_type", "5")
+        bulkRequestBuilder.add(transportClient.prepareIndex("test_index", "_doc", "1")
                 .setSource(XContentFactory.jsonBuilder()
-                        .startObject().field("title", "JAVASCRIPT").endObject()));
-        bulkRequestBuilder.add(transportClient.prepareIndex("my_index", "my_type", "6")
+                        .startObject().field("title", "test").endObject()));
+        bulkRequestBuilder.add(transportClient.prepareIndex("test_index", "_doc", "2")
                 .setSource(XContentFactory.jsonBuilder()
-                        .startObject().field("title", "BASIC").endObject()));
+                        .startObject().field("title", "test all").endObject()));
+        bulkRequestBuilder.add(transportClient.prepareIndex("test_index", "_doc", "3")
+                .setSource(XContentFactory.jsonBuilder()
+                        .startObject().field("title", "test-all").endObject()));
+        bulkRequestBuilder.add(transportClient.prepareIndex("test_index", "_doc", "4")
+                .setSource(XContentFactory.jsonBuilder()
+                        .startObject().field("title", "test_all").endObject()));
         BulkResponse responses = bulkRequestBuilder.get();
         if (responses.hasFailures()) {
             throw new RuntimeException("bulk操作失败");
@@ -203,16 +226,25 @@ public class EsTest {
                 System.err.println(throwable.getMessage());
             }
         })
-        .setBulkActions(10000)      //We want to execute the bulk every 10 000 requests
-        .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.MB))     //We want to flush the bulk every 5mb
-        .setFlushInterval(TimeValue.timeValueSeconds(5))    //We want to flush the bulk every 5 seconds whatever the number of requests
+        .setBulkActions(10000)      //We want to execute the bulk every 10000 requests
+//        .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.MB))     //We want to flush the bulk every 5mb
+//        .setFlushInterval(TimeValue.timeValueSeconds(5))    //We want to flush the bulk every 5 seconds whatever the number of requests
         .setConcurrentRequests(0)       //Set the number of concurrent requests.
-        .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(100), 3))
+//        .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(100), 3))
         .build();
         bulkProcessor.add(new IndexRequest("my_index", "my_type", "10").source("title", "C"));
         bulkProcessor.add(new DeleteRequest("my_index", "my_type", "1"));
         bulkProcessor.close();
     }
 
+    /**
+     * 改变索引，用处在于替换 index 的 mapping（详见笔记 玩转 elasticsearch 7 中的示例）
+     */
+    @Test
+    public void redindexTest() {
+        BulkByScrollResponse response = new ReindexRequestBuilder(transportClient, ReindexAction.INSTANCE)
+                .source("old_index").destination("new_index_2").filter(QueryBuilders.matchAllQuery()).get();
+        System.out.println(response.getStatus());
+    }
 
 }
