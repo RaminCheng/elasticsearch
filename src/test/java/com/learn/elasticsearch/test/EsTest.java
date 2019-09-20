@@ -10,6 +10,10 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.transport.TransportClient;
@@ -22,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.*;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.SearchHit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -247,4 +252,32 @@ public class EsTest {
         System.out.println(response.getStatus());
     }
 
+    /**
+     * 带参数查询
+     */
+    @Test
+    public void searchWithparam() {
+        SearchResponse response = transportClient.prepareSearch("my_index")
+                .setQuery(QueryBuilders.matchQuery("title", "java"))
+                .setPostFilter(QueryBuilders.rangeQuery("date").from("2019-01-01").to("2019-01-02"))
+                .setExplain(true).get();
+        System.out.println(response.status());
+        for (SearchHit hit : response.getHits()) {
+            System.out.println(hit.getSourceAsString());
+        }
+    }
+
+    @Test
+    public void multiSearch() {
+        SearchRequestBuilder requestBuilder1 = transportClient.prepareSearch("my_index")
+                .setQuery(QueryBuilders.queryStringQuery("java")).setSize(1);
+        SearchRequestBuilder requestBuilder2 = transportClient.prepareSearch("my_index")
+                .setQuery(QueryBuilders.matchQuery("title", "C"));
+        MultiSearchResponse response =
+                transportClient.prepareMultiSearch().add(requestBuilder1).add(requestBuilder2).get();
+        for (MultiSearchResponse.Item item : response.getResponses()) {
+            SearchResponse searchResponse = item.getResponse();
+            System.out.println(searchResponse.getHits().getTotalHits().value);
+        }
+    }
 }
