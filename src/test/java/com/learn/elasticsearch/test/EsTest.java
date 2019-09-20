@@ -18,10 +18,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -117,7 +117,7 @@ public class EsTest {
      */
     @Test
     public void deletedByQuery() {
-        BulkByScrollResponse response = DeleteByQueryAction.INSTANCE.newRequestBuilder(transportClient)
+        BulkByScrollResponse response = new DeleteByQueryRequestBuilder(transportClient, DeleteByQueryAction.INSTANCE)
                 .filter(QueryBuilders.matchQuery("name", "test")).source("test_index").get();
         long deleted = response.getDeleted();
         System.out.println(deleted);
@@ -129,7 +129,7 @@ public class EsTest {
      */
     @Test
     public void deleteByQueryAsync() throws InterruptedException {
-        DeleteByQueryAction.INSTANCE.newRequestBuilder(transportClient)
+        new DeleteByQueryRequestBuilder(transportClient, DeleteByQueryAction.INSTANCE)
                 .filter(QueryBuilders.matchQuery("name", "test")).source("test_index")
                 .execute(new ActionListener<BulkByScrollResponse>() {
                     @Override

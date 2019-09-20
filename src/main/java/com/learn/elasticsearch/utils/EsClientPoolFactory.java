@@ -40,10 +40,10 @@ public class EsClientPoolFactory implements PooledObjectFactory<TransportClient>
         //指定ES集群
         Settings settings = Settings.builder().put("cluster.name", clusterName).build();
         //创建访问ES服务器的客户端
-        TransportClient transportClient = new PreBuiltTransportClient(settings) .addTransportAddresses(
+        TransportClient transportClient = new PreBuiltTransportClient(settings).addTransportAddresses(
                 new TransportAddress(InetAddress.getByName(clusterIp), node01Port),
-                new TransportAddress(InetAddress.getByName(clusterIp), node01Port),
-                new TransportAddress(InetAddress.getByName(clusterIp), node01Port));
+                new TransportAddress(InetAddress.getByName(clusterIp), node02Port),
+                new TransportAddress(InetAddress.getByName(clusterIp), node03Port));
         return new DefaultPooledObject<TransportClient>(transportClient);
     }
 
