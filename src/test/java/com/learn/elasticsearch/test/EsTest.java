@@ -61,28 +61,28 @@ public class EsTest {
                 .field("title", "JAVA")
                 .field("content", "JAVA is a useful language")
                 .endObject();
-        IndexResponse response = transportClient.prepareIndex("my_index", "test_index_1","3")
+        IndexResponse response = transportClient.prepareIndex("my_index", "my_type","3")
                 .setSource(doc).get();
         System.out.println(response.status());
     }
 
     @Test
     public void searchTest() {
-        GetResponse response = transportClient.prepareGet("my_index","test_index_1","1")
+        GetResponse response = transportClient.prepareGet("my_index","my_type","1")
                 .execute().actionGet();
         System.out.println(response.getSourceAsString());
     }
 
     @Test
     public void deleteTest() {
-        DeleteResponse response = transportClient.prepareDelete("my_index", "test_index_1", "3").get();
+        DeleteResponse response = transportClient.prepareDelete("my_index", "my_type", "3").get();
         System.out.println(response.status());
     }
 
     @Test
     public void updateTest() throws IOException, ExecutionException, InterruptedException {
         UpdateRequest request = new UpdateRequest();
-        request.index("my_index").type("test_index_1").id("3")
+        request.index("my_index").type("my_type").id("3")
                 .doc(XContentFactory.jsonBuilder().startObject().field("title", "PYTHON").endObject());
         UpdateResponse response = transportClient.update(request).get();
         System.out.println(response.status());
@@ -90,9 +90,9 @@ public class EsTest {
 
     @Test
     public void upsertTest() throws IOException, ExecutionException, InterruptedException {
-        IndexRequest indexRequest = new IndexRequest("my_index", "test_index_1", "4")
+        IndexRequest indexRequest = new IndexRequest("my_index", "my_type", "4")
                 .source(XContentFactory.jsonBuilder().startObject().field("title", "C++").endObject());
-        UpdateRequest updateRequest = new UpdateRequest("my_index", "test_index_1", "4")
+        UpdateRequest updateRequest = new UpdateRequest("my_index", "my_type", "4")
                 .doc(XContentFactory.jsonBuilder().startObject().field("title", "PHP").endObject())
                 .upsert(indexRequest);
         UpdateResponse response = transportClient.update(updateRequest).get();
@@ -102,7 +102,7 @@ public class EsTest {
     @Test
     public void mgetTest() {
         MultiGetResponse responses = transportClient.prepareMultiGet()
-                .add("my_index", "test_index_1", "1")
+                .add("my_index", "my_type", "1")
                 .add("website", "article","1", "2").get();
         for (MultiGetItemResponse item : responses) {
             GetResponse getResponse = item.getResponse();
@@ -155,10 +155,10 @@ public class EsTest {
     @Test
     public void bulkTest() throws IOException {
         BulkRequestBuilder bulkRequestBuilder = transportClient.prepareBulk();
-        bulkRequestBuilder.add(transportClient.prepareIndex("my_index", "test_index_1", "5")
+        bulkRequestBuilder.add(transportClient.prepareIndex("my_index", "my_type", "5")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject().field("title", "JAVASCRIPT").endObject()));
-        bulkRequestBuilder.add(transportClient.prepareIndex("my_index", "test_index_1", "6")
+        bulkRequestBuilder.add(transportClient.prepareIndex("my_index", "my_type", "6")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject().field("title", "BASIC").endObject()));
         BulkResponse responses = bulkRequestBuilder.get();
@@ -209,8 +209,8 @@ public class EsTest {
         .setConcurrentRequests(0)       //Set the number of concurrent requests.
         .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(100), 3))
         .build();
-        bulkProcessor.add(new IndexRequest("my_index", "test_index_1", "10").source("title", "C"));
-        bulkProcessor.add(new DeleteRequest("my_index", "test_index_1", "1"));
+        bulkProcessor.add(new IndexRequest("my_index", "my_type", "10").source("title", "C"));
+        bulkProcessor.add(new DeleteRequest("my_index", "my_type", "1"));
         bulkProcessor.close();
     }
 
