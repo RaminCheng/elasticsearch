@@ -26,6 +26,9 @@ import org.elasticsearch.index.reindex.*;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -278,5 +281,14 @@ public class EsTest {
             SearchResponse searchResponse = item.getResponse();
             System.out.println(searchResponse.getHits().getTotalHits().value);
         }
+    }
+
+    @Test
+    public void aggregationSearch() {
+        SearchResponse response = transportClient.prepareSearch("my_index")
+                .setQuery(QueryBuilders.matchAllQuery()).addAggregation(AggregationBuilders.dateHistogram("agg1")
+                        .field("date").calendarInterval(DateHistogramInterval.DAY)).get();
+        Histogram histogram = response.getAggregations().get("agg1");
+        System.out.println(histogram);
     }
 }
